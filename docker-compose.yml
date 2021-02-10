@@ -1,0 +1,46 @@
+version: '3.7'
+
+services:
+  db-desafio-prod:
+    image: postgres:11.2
+    container_name: db-desafio-prod
+    restart: always
+    env_file: .env
+    volumes:
+      - ./db/postgres-data:/var/lib/postgresql/data
+      # - ./db/postgres-data/pg_hba.conf:/var/lib/postgresql/data/pg_hba.conf
+    # network_mode: bridge
+
+  backend-desafio-prod:
+    env_file: .env
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend-desafio-prod
+    #restart: always
+    image: backend-desafio-prod
+    command: python3 manage.py migrate --nopinput
+    command: python3 manage.py collectstatic --no-input --clear
+    command: gunicorn --bind 0.0.0.0:3040 --workers=5 --threads=2 --log-level=DEBUG --timeout 120 --graceful-timeout 300 --keep-alive 300 backend_desafio.wsgi
+    volumes:
+      - ./backend/backend_desafio:/usr/src/app
+      - ./backend/backend_desafio/staticfiles:/usr/src/app/staticfiles
+    links:
+      - db-desafio-prod:db-desafio-prod
+    depends_on:
+      - db-desafio-prod
+    #network_mode: bridge
+
+  frontend-desafio-prod:
+    build: ./frontend
+    image: frontend-desafio-prod
+    container_name: frontend-desafio-prod
+    restart: always
+    volumes:
+      - ./backend/backend_desafio/staticfiles:/usr/src/app/staticfiles
+    ports:
+      - 8080:80
+      - 3040:3040
+    depends_on:
+      - backend-desafio-prod
+    #network_mode: bridge
